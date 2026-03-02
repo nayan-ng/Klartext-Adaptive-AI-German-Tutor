@@ -1,0 +1,15 @@
+# SQLite Database (Keeps your personal chats private)
+database.db
+
+# Python Cache Files
+__pycache__/
+*.pyc
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# Temp Uploaded PDFs
+temp_*
+*.pdf

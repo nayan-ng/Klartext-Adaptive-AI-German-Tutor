@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>German Tutor AI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, sans-serif; background: linear-gradient(135deg, #0f172a, #1e1b4b, #0f172a); height: 100vh; color: #e2e8f0; display: flex; overflow: hidden; }
+        .sidebar { width: 280px; background: rgba(255, 255, 255, 0.02); backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; z-index: 10; }
+        .main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .new-chat-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: white; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 15px; margin-bottom: 25px; transition: all 0.3s ease; }
+        .new-chat-btn:hover { background: rgba(255, 255, 255, 0.1); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); }
+        .session-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .session-item-container { display: flex; align-items: center; justify-content: space-between; border-radius: 8px; transition: 0.2s; }
+        .session-item-container:hover, .session-item-container.active { background: rgba(255, 255, 255, 0.08); }
+        .session-item { flex: 1; padding: 12px 15px; cursor: pointer; font-size: 14px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+        .session-item:hover { color: white; }
+        .delete-btn { background: transparent; border: none; color: rgba(255, 255, 255, 0.4); cursor: pointer; padding: 8px 12px; border-radius: 6px; display: none; font-size: 14px; transition: 0.2s; }
+        .session-item-container:hover .delete-btn { display: block; }
+        .delete-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+        .chat-header { padding: 25px; text-align: center; font-size: 18px; font-weight: 300; letter-spacing: 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.03); background: rgba(0, 0, 0, 0.1); display: flex; justify-content: center; align-items: center; }
+        .chat-box { flex: 1; overflow-y: auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 25px; align-items: center; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        @keyframes floatUp { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+        .message-wrapper { width: 100%; max-width: 800px; display: flex; }
+        .message-wrapper.user { justify-content: flex-end; }
+        .message-wrapper.bot { justify-content: flex-start; animation: floatUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+        .message { padding: 16px 24px; border-radius: 18px; font-size: 15px; line-height: 1.6; max-width: 85%; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+        .message p { margin: 0; }
+        .message p:not(:last-child) { margin-bottom: 12px; }
+        .user .message { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1); border-bottom-right-radius: 4px; color: white; }
+        .bot .message { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.03); border-bottom-left-radius: 4px; color: #cbd5e1; }
+        .input-container { width: 100%; max-width: 800px; margin: 0 auto; padding: 20px; box-sizing: border-box; }
+        .input-box { display: flex; background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 8px; backdrop-filter: blur(10px); }
+        .input-box input[type="text"] { flex: 1; background: transparent; border: none; color: white; padding: 12px 15px; outline: none; font-size: 15px; }
+        .input-box button { background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.05); color: white; border-radius: 12px; padding: 0 15px; cursor: pointer; transition: 0.3s; margin-left: 6px; display: flex; align-items: center; justify-content: center; }
+        .input-box button:hover { background: rgba(255, 255, 255, 0.15); }
+        .input-box button i { font-size: 1.1rem; }
+        @keyframes pulse-red { 0% { background: rgba(255, 255, 255, 0.08); } 50% { background: rgba(239, 68, 68, 0.5); color: white; } 100% { background: rgba(255, 255, 255, 0.08); } }
+        #mic-btn.listening { animation: pulse-red 1.5s infinite !important; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <button class="new-chat-btn" onclick="startNewSession()">+ Neues Gespräch</button>
+        <div class="session-list" id="session-list"></div>
+    </aside>
+    <main class="main-chat">
+        <div class="chat-header">
+            🇩🇪 German Tutor AI
+            <select id="proficiency-level" style="margin-left: 15px; background: rgba(0,0,0,0.2); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 5px; padding: 4px 10px; font-size: 14px; outline: none; cursor: pointer;">
+                <option value="A1">A1 (Beginner)</option>
+                <option value="A2">A2 (Elementary)</option>
+                <option value="B1" selected>B1 (Intermediate)</option>
+                <option value="B2">B2 (Upper Intermediate)</option>
+                <option value="C1">C1 (Advanced)</option>
+            </select>
+        </div>
+        <div class="chat-box" id="chat-box"></div>
+        <div class="input-container">
+            <div class="input-box">
+                <input type="file" id="file-upload" accept=".txt,.pdf" style="display: none;" onchange="handleFileUpload(event)">
+                <button id="attach-btn" onclick="document.getElementById('file-upload').click()">
+                    <i class="bi bi-paperclip"></i>
+                </button>
+                <button id="mic-btn" onclick="startListening()">
+                    <i class="bi bi-mic"></i>
+                </button>
+                <input type="text" id="user-input" placeholder="Schreib etwas auf Deutsch..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()" style="padding: 0 25px;">Senden</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = "http://127.0.0.1:8000";
+        let currentSessionId = null;
+
+        window.onload = async () => {
+            await loadSidebarSessions();
+            startNewSession();
+        };
+
+        function formatSessionTitle(rawId) {
+            if (!rawId) return "Neues Gespräch";
+            let parts = rawId.split('_');
+            if (parts.length > 1) parts.pop(); 
+            let title = parts.join(' ');
+            return title.length > 25 ? title.substring(0, 25) + "..." : title;
+        }
+
+        async function loadSidebarSessions() {
+            try {
+                const response = await fetch(`${API_URL}/get_sessions`);
+                const sessions = await response.json();
+                const sessionList = document.getElementById("session-list");
+                sessionList.innerHTML = "";
+                sessions.reverse().forEach(session => {
+                    const container = document.createElement("div");
+                    container.className = "session-item-container";
+                    if (session === currentSessionId) container.classList.add("active");
+                    const textDiv = document.createElement("div");
+                    textDiv.className = "session-item";
+                    textDiv.innerText = formatSessionTitle(session);
+                    textDiv.onclick = () => loadChatHistory(session);
+                    const delBtn = document.createElement("button");
+                    delBtn.className = "delete-btn";
+                    delBtn.innerHTML = '<i class="bi bi-trash3"></i>';
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteChatSession(session);
+                    };
+                    container.appendChild(textDiv);
+                    container.appendChild(delBtn);
+                    sessionList.appendChild(container);
+                });
+            } catch (e) {}
+        }
+
+        async function deleteChatSession(sessionId) {
+            if (!confirm("Bist du sicher?")) return;
+            try {
+                await fetch(`${API_URL}/delete_session?session_id=${sessionId}`, { method: "DELETE" });
+                if (currentSessionId === sessionId) startNewSession();
+                else loadSidebarSessions();
+            } catch (e) {}
+        }
+
+        function startNewSession() {
+            currentSessionId = null;
+            document.getElementById("chat-box").innerHTML = ""; 
+            addMessageToUI("Hallo! Wie kann ich dir heute helfen?", "bot");
+            highlightActiveSession(null);
+        }
+
+        async function loadChatHistory(sessionId) {
+            currentSessionId = sessionId;
+            document.getElementById("chat-box").innerHTML = ""; 
+            highlightActiveSession(sessionId);
+            try {
+                const response = await fetch(`${API_URL}/get_history?session_id=${sessionId}`);
+                const history = await response.json();
+                history.forEach(msg => {
+                    addMessageToUI(msg.user_input, "user");
+                    addMessageToUI(msg.bot_response, "bot");
+                });
+            } catch (e) {}
+        }
+
+        function highlightActiveSession(sessionId) {
+            const items = document.querySelectorAll(".session-item-container");
+            items.forEach(item => {
+                if (item.firstChild.innerText === formatSessionTitle(sessionId)) item.classList.add("active");
+                else item.classList.remove("active");
+            });
+        }
+
+        async function sendMessage() {
+            const inputField = document.getElementById("user-input");
+            const message = inputField.value.trim();
+            if (!message) return;
+
+            if (!currentSessionId) {
+                try {
+                    const titleRes = await fetch(`${API_URL}/generate_title?prompt=${encodeURIComponent(message)}`);
+                    const titleData = await titleRes.json();
+                    let aiTitle = titleData.title;
+                    let safeName = aiTitle.replace(/[^a-zA-Z0-9_äöüÄÖÜß ]/g, '').trim().replace(/\s+/g, '_');
+                    currentSessionId = safeName + "_" + Date.now();
+                } catch (e) {
+                    currentSessionId = "session_" + Date.now();
+                }
+            }
+
+            addMessageToUI(message, "user");
+            inputField.value = "";
+            const typingId = addMessageToUI("Denkt nach...", "bot", true);
+            const proficiency = document.getElementById("proficiency-level").value;
+
+            try {
+                const response = await fetch(`${API_URL}/chat?session_id=${currentSessionId}&user_message=${encodeURIComponent(message)}&proficiency=${encodeURIComponent(proficiency)}`, { method: "POST" });
+                const data = await response.json();
+                document.getElementById(typingId).remove();
+                addMessageToUI(data.response, "bot");
+                speakGerman(data.response);
+                loadSidebarSessions();
+            } catch (error) {
+                document.getElementById(typingId).remove();
+                addMessageToUI("Error connecting to server.", "bot");
+            }
+        }
+
+        function addMessageToUI(text, sender, isTyping = false) {
+            const chatBox = document.getElementById("chat-box");
+            const wrapper = document.createElement("div");
+            wrapper.className = `message-wrapper ${sender}`;
+            if (isTyping) wrapper.id = "typing-" + Date.now();
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message";
+            msgDiv.innerHTML = marked.parse(text);
+            wrapper.appendChild(msgDiv);
+            chatBox.appendChild(wrapper);
+            if (sender === "user" || isTyping) chatBox.scrollTop = chatBox.scrollHeight;
+            return wrapper.id;
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === "Enter") sendMessage();
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!currentSessionId) {
+                currentSessionId = "Buch_Analyse_" + Date.now();
+                highlightActiveSession(null);
+            }
+
+            const typingId = addMessageToUI(`Lädt ${file.name} hoch...`, "bot", true);
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const response = await fetch(`${API_URL}/upload?session_id=${currentSessionId}`, { method: "POST", body: formData });
+                const data = await response.json();
+                document.getElementById(typingId).remove();
+                if (data.error) {
+                    addMessageToUI("Fehler: " + data.error, "bot");
+                } else {
+                    addMessageToUI(`[Uploaded File: ${file.name}]`, "user");
+                    addMessageToUI(`Verstanden! Ich habe das Dokument '${file.name}' gelesen. Wie kann ich dir dabei helfen?`, "bot");
+                    loadSidebarSessions();
+                }
+            } catch (error) {
+                document.getElementById(typingId).remove();
+                addMessageToUI("Upload failed.", "bot");
+            }
+            event.target.value = '';
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'de-DE';
+            recognition.onstart = function() {
+                document.getElementById('mic-btn').classList.add('listening');
+                document.getElementById('user-input').placeholder = "Hört zu...";
+            };
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('user-input').value = transcript;
+                sendMessage();
+            };
+            recognition.onerror = function() { resetMicUI(); };
+            recognition.onend = function() { resetMicUI(); };
+        }
+
+        function startListening() {
+            if (recognition) recognition.start();
+            else alert("Browser unterstützt keine Spracherkennung.");
+        }
+
+        function resetMicUI() {
+            document.getElementById('mic-btn').classList.remove('listening');
+            document.getElementById('user-input').placeholder = "Schreib etwas auf Deutsch...";
+        }
+
+        function speakGerman(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            let cleanText = text.replace(/[*#_`~]/g, '');
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'de-DE';
+            utterance.rate = 0.95;
+            utterance.pitch = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const germanVoice = voices.find(voice => voice.lang.includes('de'));
+            if (germanVoice) utterance.voice = germanVoice;
+            window.speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
