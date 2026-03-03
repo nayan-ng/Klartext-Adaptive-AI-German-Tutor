@@ -12,21 +12,22 @@ from sqlalchemy.orm import sessionmaker
 import google.generativeai as genai
 import datetime
 
-GOOGLE_API_KEY = "PASTE_YOUR_NEW_KEY_HERE"
+GOOGLE_API_KEY = "YOUR_API_KEY"
 genai.configure(api_key=GOOGLE_API_KEY)
 
 german_tutor_rules = """
-You are a strict but encouraging German language professor. 
-Your student is at an beginner/intermediate/advanced university level (A1-B2 level).
+You are an encouraging German language professor. 
+Your student is at an beginner/intermediate/advanced university level (A1 to C2 level).
 Follow these strict rules:
-1. ALWAYS reply in German with english translations
+1. ALWAYS reply in German with english translations.
 2. If the user makes a grammatical or spelling mistake in their German, correct it gently before answering their question.
 3. Use vocabulary appropriate for a university student. 
 4. Be especially helpful if the user asks for help with creative writing.
 5. Keep your responses concise and conversational.
+6. ALWAYS be cheerful.
 """
 
-mmodel = genai.GenerativeModel(
+gemini_engine = genai.GenerativeModel(
     model_name='gemini-2.5-flash-lite'
 )
 
@@ -96,9 +97,16 @@ async def delete_session(session_id: str, db: AsyncSession = Depends(get_session
 @app.get("/generate_title")
 async def generate_title(prompt: str):
     try:
-        title_model = genai.GenerativeModel('gemini-2.5-flash-lite')
-        response = await title_model.generate_content_async(f"Generate a short 2-4 word German title for this chat: {prompt}")
-        return {"title": response.text.strip()}
+        title_model = genai.GenerativeModel('gemini-2.5-flash')
+        strict_prompt = f"CRITICAL RULE: Return ONLY a 2 to 4 word German title for the following text. Do NOT correct grammar. Do NOT give explanations. Just the 3 words. Text: {prompt}"
+        
+        response = await title_model.generate_content_async(strict_prompt)
+        clean_title = response.text.strip()
+        
+        if len(clean_title) > 30:
+            clean_title = clean_title[:30] + "..."
+            
+        return {"title": clean_title}
     except:
         return {"title": "Neues Gespräch"}
 
@@ -146,9 +154,10 @@ async def chat(session_id: str, user_message: str, proficiency: str = "B1", db: 
     chat_transcript = ""
 
     dynamic_rule = (
-        f"You are a strict but encouraging university-level German professor. "
+        f"You are an encouraging and cheerful university-level German professor. "
         f"The student is practicing at the {proficiency} CEFR level. "
         f"KNOWN STUDENT WEAKNESSES: {weakness_str}. Pay special attention to testing them on these. "
+        f"CRITICAL RULE: ALWAYS reply in german with english translations."
         f"CRITICAL RULE: If the student makes a fundamental grammar error in their prompt, you MUST append a tag at the VERY END of your response in this exact format: [WEAKNESS: Topic]. For example: [WEAKNESS: Dativ Case] or [WEAKNESS: Word Order]. Do not say the tag out loud."
     )
     prompt_parts.append(dynamic_rule)
@@ -180,7 +189,7 @@ async def chat(session_id: str, user_message: str, proficiency: str = "B1", db: 
     prompt_parts.append(f"Here is my new question: {user_message}")
 
     try:
-        response = await model.generate_content_async(prompt_parts)
+        response = await gemini_engine.generate_content_async(prompt_parts)
         ai_reply = response.text
     except Exception as e:
         print(f"--- GOOGLE ERROR: {e} ---")
